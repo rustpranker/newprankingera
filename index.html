@@ -210,29 +210,35 @@ document.getElementById('confirmPay').onclick = async () => {
 
   let sum = 0;
   cart.forEach(i => {
-    let price = parseFloat(i.price.replace(/[^0-9.]/g, '')) || 0;
+    let price = parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0;
     sum += price;
   });
 
   const orderData = {
-    name: tg,
-    email: em,
     telegram: tg,
+    email: em,
     total: sum,
-    items: cart.map(i => i.name),
+    items: cart.map(i => i.name || i),
     method
   };
 
   try {
-const res = await fetch("https://newprankingera-production.up.railway.app/order", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(orderData)
-});
+    const res = await fetch("https://newprankingera-production.up.railway.app/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData)
+    });
 
-    const data = await res.json();
+    // debug: получим текст ответа, даже если он не json
+    const text = await res.text();
+    try {
+      var data = text ? JSON.parse(text) : {};
+    } catch(e) {
+      console.warn("response not JSON:", text);
+      data = { ok: false, raw: text };
+    }
 
-    if (data.success) {
+    if(res.ok && data.ok){
       cart = [];
       updateCart();
       document.getElementById('payModal').style.display = 'none';
@@ -242,11 +248,12 @@ const res = await fetch("https://newprankingera-production.up.railway.app/order"
         document.getElementById('successModal').style.display = 'none';
       }, 1500);
     } else {
-      alert("Ошибка при отправке заказа.");
+      console.error("Order error:", res.status, data);
+      alert("Ошибка при отправке заказа: " + (data.error || data.raw || res.status));
     }
   } catch (err) {
-    alert("Ошибка соединения с сервером.");
-    console.error(err);
+    console.error("Fetch error:", err);
+    alert("Ошибка соединения с сервером. Проверь backend в Railway и CORS.");
   }
 };
 
