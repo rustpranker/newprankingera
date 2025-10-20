@@ -6,7 +6,7 @@ import cors from "cors";
 const app = express();
 
 // config CORS - вставь сюда свой фронтенд-домен
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://pranking.xyz";
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://www.pranking.xyz";
 
 app.use(cors({
   origin: [FRONTEND_ORIGIN, /* можно добавить другие домены */],
