@@ -201,21 +201,53 @@ document.getElementById('payBtn').onclick=()=>{
   document.getElementById('modalBackdrop').style.display='flex';
   document.getElementById('payModal').style.display='block';
 };
+document.getElementById('confirmPay').onclick = async () => {
+  const tg = document.getElementById('tgUser').value.trim();
+  const em = document.getElementById('email').value.trim();
+  const method = document.getElementById('payMethod').value;
 
-document.getElementById('confirmPay').onclick=()=>{
-  const tg=document.getElementById('tgUser').value.trim();
-  const em=document.getElementById('email').value.trim();
-  const method=document.getElementById('payMethod').value;
-  if(!tg||!em)return;
-  orders.push({cart,tg,em,method});
-  cart=[];
-  updateCart();
-  document.getElementById('payModal').style.display='none';
-  document.getElementById('successModal').style.display='block';
-  setTimeout(()=>{
-    document.getElementById('modalBackdrop').style.display='none';
-    document.getElementById('successModal').style.display='none';
-  },1500);
+  if (!tg || !em) return alert("Введите Telegram и Email!");
+
+  let sum = 0;
+  cart.forEach(i => {
+    let price = parseFloat(i.price.replace(/[^0-9.]/g, '')) || 0;
+    sum += price;
+  });
+
+  const orderData = {
+    name: tg,
+    email: em,
+    telegram: tg,
+    total: sum,
+    items: cart.map(i => i.name),
+    method
+  };
+
+  try {
+    const res = await fetch("https://YOUR-APP-NAME.up.railway.app/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData)
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      cart = [];
+      updateCart();
+      document.getElementById('payModal').style.display = 'none';
+      document.getElementById('successModal').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('modalBackdrop').style.display = 'none';
+        document.getElementById('successModal').style.display = 'none';
+      }, 1500);
+    } else {
+      alert("Ошибка при отправке заказа.");
+    }
+  } catch (err) {
+    alert("Ошибка соединения с сервером.");
+    console.error(err);
+  }
 };
 
 document.getElementById('ordersBtn').onclick=()=>{
