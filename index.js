@@ -54,4 +54,4 @@ ${items.map(i => `• ${i.name} — ${i.price}₴`).join("\n")}
 
 // ⚠️ Railway требует именно process.env.PORT
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`✅
+app.listen(PORT, () => console.log(`✅ Сервер запущен на порту ${PORT}`));
