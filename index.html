@@ -224,11 +224,11 @@ document.getElementById('confirmPay').onclick = async () => {
   };
 
   try {
-    const res = await fetch("https://worthy-wholeness.railway.app/order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderData)
-    });
+const res = await fetch("https://newprankingera-production.up.railway.app/order", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(orderData)
+});
 
     const data = await res.json();
 
