@@ -1,0 +1,14 @@
+{
+  "name": "pranks-backend",
+  "version": "1.0.0",
+  "description": "Backend for Pranks Catalogue — receives orders and forwards to Telegram",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
