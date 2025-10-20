@@ -1,45 +1,57 @@
 import express from "express";
+import bodyParser from "body-parser";
 import fetch from "node-fetch";
 
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
-// 🔧 Замени на свои данные:
-const BOT_TOKEN = "8277453489:AAEjGhpEwotl5IagqSH9FGq9gQpbiyRbxeU";
-const CHAT_ID = "7991972980";
+// Получаем токен и чат из переменных окружения
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 
-// 💬 Принимаем заказы с сайта
-app.post("/api/order", async (req, res) => {
-  const { name, telegram, email, total, items } = req.body;
+app.get("/", (req, res) => {
+  res.send("✅ Backend работает! Telegram интеграция активна.");
+});
 
-  const text = `
+app.post("/order", async (req, res) => {
+  try {
+    const { email, telegram, items, total } = req.body;
+
+    if (!email || !telegram || !items || !total) {
+      return res.status(400).json({ error: "Не хватает данных в заказе." });
+    }
+
+    // Формируем сообщение для Telegram
+    const message = `
 📦 <b>Новый заказ!</b>
-👤 Имя: ${name || "—"}
-💬 Telegram: ${telegram || "—"}
-✉️ Email: ${email || "—"}
-💰 Сумма: ${total}₴
-🛒 Товары:
-${items.map((i) => `• ${i.title} — ${i.price}₴`).join("\n")}
+
+📧 Почта: ${email}
+💬 Telegram: ${telegram}
+
+🛍️ Позиции:
+${items.map(i => `• ${i.name} — ${i.price}₴`).join("\n")}
+
+💰 <b>Итого:</b> ${total}₴
 `;
 
-  try {
+    // Отправляем в Telegram
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: CHAT_ID,
-        text,
+        text: message,
         parse_mode: "HTML",
       }),
     });
 
-    res.json({ ok: true, message: "Заказ успешно отправлен!" });
+    res.json({ success: true, message: "Заказ отправлен в Telegram!" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, message: "Ошибка при отправке заказа." });
+    console.error("Ошибка при отправке заказа:", err);
+    res.status(500).json({ error: "Ошибка сервера." });
   }
 });
 
-// 🔥 Railway запустит это
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ⚠️ Railway требует именно process.env.PORT
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`✅
