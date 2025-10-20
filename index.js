@@ -17,8 +17,8 @@ app.use(cors({
 app.use(express.json());
 
 // env vars
-const BOT_TOKEN = process.env.BOT_TOKEN || "";
-const CHAT_ID = process.env.CHAT_ID || ""; // numeric chat id or channel id
+const BOT_TOKEN = process.env.BOT_TOKEN || "8277453489:AAEjGhpEwotl5IagqSH9FGq9gQpbiyRbxeU";
+const CHAT_ID = process.env.CHAT_ID || "7991972980"; // numeric chat id or channel id
 const PORT = process.env.PORT || 8080;
 
 if(!BOT_TOKEN || !CHAT_ID){
