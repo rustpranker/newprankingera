@@ -87,6 +87,7 @@ main { padding:30px 0; }
 .card .title { color:var(--red); font-weight:800; margin-bottom:6px; }
 .card .meta { font-size:13px; color:var(--muted); margin-bottom:8px; flex:1; }
 .card .price { font-weight:800; margin-bottom:8px; color:var(--green); }
+.card .buyers { font-size:12px; color:var(--muted); margin-bottom:8px; }
 .add-btn {
   background:var(--red-strong);
   color:#fff;
@@ -192,6 +193,17 @@ main { padding:30px 0; }
 .status-pending { background:rgba(255,159,0,0.12); color:var(--orange); border:1px solid rgba(255,159,0,0.18); }
 .status-success { background:rgba(0,212,111,0.10); color:var(--green); border:1px solid rgba(0,212,111,0.14); }
 .status-error { background:rgba(255,32,32,0.08); color:var(--red); border:1px solid rgba(255,32,32,0.12); }
+
+/* small action button in orders list */
+.order-action {
+  margin-left:12px;
+  background:#222;
+  color:#fff;
+  padding:8px 10px;
+  border:1px solid #333;
+  cursor:pointer;
+  font-weight:700;
+}
 
 /* ===== Анимация успеха ===== */
 .success-animation {
@@ -305,17 +317,16 @@ main { padding:30px 0; }
 
 <script>
 /*
-  Интегрированная система заказов (клиентская часть):
-  - Делает POST /order
-  - Запрашивает GET /orders/:telegram
-  - Локально сохраняет временные ошибки (localStorage) для отображения "Ошибка"
-  - Поддерживает статусы: pending, success, error
+  Рабочий client-side код.
+  -> ITEMS ожидается в формате:
+     { id:12, name:'✉️ Атака СМС', desc:'описание', price:'10$', buyers:1121 },
+  просто добавь свои объекты в массив ниже.
 */
 
 /* ---------- Конфигурация ---------- */
-const API_BASE = "https://newprankingera-production.up.railway.app"; // поменяй при необходимости
+const API_BASE = "https://newprankingera-production.up.railway.app"; // поменяй если нужно
 
-/* ---------- Каталог (оставил пустым) ---------- */
+/* ---------- Каталог: вставь свои пранки в этот массив (формат как ты просил) ---------- */
 const ITEMS = [
   {id:1, name:'💳Заблокирую любые банковские и sim карты', desc:'↳Банки: за 1000р блокируется 1 банк со всеми в нем картами, личным кабинетом (приложением) и смс оповещением (иногда). Блокировка Тинькофф - 1000р. Блокировка работает до визита в отделение банка. Без визита раблокировка невозможна. в 1 из 100 случаев блокировка может слететь, мы сразу же перебаним карту. Можно повторять сразу же, после перевыпуска карты, даже, если ее только заказали и не успели изготовить.', price:'15$', buyers:173},
   {id:2, name:'🐵 Наезд от хача', desc:'Грозный Ислам любит 2 вещи: рамсить и лес. Поэтому каждого нового знакомого он сначала запугивает, а потом приглашает в лес для изучения флоры и фауны. Жертва в красках узнает что с ней будет происходить при встрече с Исламом и пойдет менять ритузы! 📍ЕСТЬ ВОЗМОЖНОСТЬ ЗВОНКА ОТ РЕАЛЬНОГО ЧЕЧЕНЦА - ЦЕНА ОТ 5000р', price:'$30', buyers:623},
@@ -360,9 +371,10 @@ function renderCatalog(){
     const imgHTML = it.img ? `<img src="${it.img}" alt="">` : '';
     c.innerHTML=`
       ${imgHTML}
-      <div class="title">${it.name}</div>
-      <div class="meta">${it.desc}</div>
-      <div class="price">${it.price}</div>
+      <div class="title">${escapeHtml(it.name)}</div>
+      <div class="meta">${escapeHtml(it.desc)}</div>
+      <div class="price">${escapeHtml(it.price)}</div>
+      <div class="buyers">Покупателей: ${escapeHtml(String(it.buyers||0))}</div>
       <button class="add-btn" data-id="${it.id}">Add to cart</button>
     `;
     catalog.appendChild(c);
@@ -372,10 +384,10 @@ function renderCatalog(){
 
 /* ---------- Cart ---------- */
 function addToCart(e){
-  const id=e.target.dataset.id;
-  const it=ITEMS.find(i=>i.id==id);
-  if(!it)return;
-  if(cart.find(c=>c.id==id)){
+  const id = e.target.dataset.id;
+  const it = ITEMS.find(i=>String(i.id) === String(id));
+  if(!it) return;
+  if(cart.find(c=>String(c.id)===String(id))){
     alert("Ты уже выбрал этот пранк!");
     return;
   }
@@ -403,17 +415,11 @@ $('modalBackdrop').addEventListener('click', (e)=>{
   }
 });
 
-/* ---------- Local error-store (для ошибок при отправке) ---------- */
+/* ---------- Local error-store ---------- */
 const LOCAL_ERRORS_KEY = 'pranks_local_errors';
-function loadLocalErrors(){
-  try{ return JSON.parse(localStorage.getItem(LOCAL_ERRORS_KEY)) || []; }catch(e){ return []; }
-}
+function loadLocalErrors(){ try{ return JSON.parse(localStorage.getItem(LOCAL_ERRORS_KEY)) || []; }catch(e){ return []; } }
 function saveLocalErrors(arr){ localStorage.setItem(LOCAL_ERRORS_KEY, JSON.stringify(arr||[])); }
-function pushLocalError(order){
-  const arr = loadLocalErrors();
-  arr.unshift(order);
-  saveLocalErrors(arr.slice(0,50)); // ограничим количество
-}
+function pushLocalError(order){ const arr = loadLocalErrors(); arr.unshift(order); saveLocalErrors(arr.slice(0,50)); }
 
 /* ---------- Confirm Pay (отправка заказа) ---------- */
 $('confirmPay').onclick = async ()=>{
@@ -422,18 +428,10 @@ $('confirmPay').onclick = async ()=>{
   const method = $('payMethod').value;
   if(!tg || !em) return alert("Введите Telegram и Email!");
 
-  // Сформируем заказ
   let sum = 0;
   cart.forEach(i=>{ let p=parseFloat(String(i.price).replace(/[^0-9.]/g,''))||0; sum+=p; });
-  const payload = {
-    telegram: tg,
-    email: em,
-    total: Number(sum).toFixed(2),
-    items: cart.map(i => i.name || i),
-    method
-  };
+  const payload = { telegram: tg, email: em, total: Number(sum).toFixed(2), items: cart.map(i => i.name || i), method };
 
-  // UX
   $('confirmPay').disabled = true;
   $('confirmPay').textContent = "Sending...";
 
@@ -448,23 +446,18 @@ $('confirmPay').onclick = async ()=>{
     try{ data = text ? JSON.parse(text) : {}; }catch(e){ data = { ok:false, raw:text }; }
 
     if(res.ok && data.ok){
-      // успешно создался на сервере — очистим корзину и покажем Success
       cart = []; updateCart();
       $('payModal').style.display='none';
       $('successModal').style.display='block';
       setTimeout(()=>{ $('modalBackdrop').style.display='none'; $('successModal').style.display='none'; }, 1500);
-
-      // Перезагрузим список заказов
       await loadAndRenderOrders(tg);
     } else {
-      // Сервер вернул ошибку — сохраним локальный "Ошибка"
       const fakeId = 'local_' + Date.now();
       pushLocalError({ id: fakeId, telegram: tg, total: payload.total, method, items: payload.items, status: 'error', createdAt: new Date().toISOString() });
       alert("Ошибка при отправке заказа: " + (data.error || data.raw || res.status));
       await loadAndRenderOrders(tg);
     }
   }catch(err){
-    // Сетевая ошибка — сохраним локальную ошибку
     const fakeId = 'local_' + Date.now();
     pushLocalError({ id: fakeId, telegram: tg, total: payload.total, method, items: payload.items, status: 'error', createdAt: new Date().toISOString() });
     alert("Error with server");
@@ -479,7 +472,7 @@ $('confirmPay').onclick = async ()=>{
 $('ordersBtn').onclick = async ()=>{
   const tg = $('tgUser').value.trim();
   if(!tg){
-    alert("You dont have orders now. Make a order in main menu pranks.");
+    alert("Введите Telegram в форме (в модальном окне) чтобы посмотреть свои заказы.");
     return;
   }
   await loadAndRenderOrders(tg);
@@ -493,7 +486,7 @@ $('refreshOrders').onclick = async ()=>{
   await loadAndRenderOrders(tg);
 };
 
-/* ---------- Получение заказов с сервера + локальных ошибок ---------- */
+/* ---------- Server interaction ---------- */
 async function fetchServerOrders(tg){
   try{
     const res = await fetch(`${API_BASE}/orders/${encodeURIComponent(tg)}`);
@@ -506,23 +499,31 @@ async function fetchServerOrders(tg){
   }
 }
 
+/* Try to confirm order via backend endpoint /confirm (expects { orderId, telegram }) */
+async function confirmOrderOnServer(orderId, telegram){
+  try{
+    const res = await fetch(`${API_BASE}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ orderId, telegram })
+    });
+    if(!res.ok) return false;
+    const j = await res.json();
+    return j && j.ok;
+  }catch(e){
+    return false;
+  }
+}
+
 async function loadAndRenderOrders(tg){
   const serverOrders = await fetchServerOrders(tg);
   const localErrors = loadLocalErrors().filter(o => o.telegram === tg);
-
-  // Объединим: локальные ошибки должны отображаться вместе с серверными заказами.
-  // Если сервер вернул заказ с тем же id что и локальный — серверный превалирует.
-  const merged = [...serverOrders]; // server first
-  localErrors.forEach(le => {
-    if(!merged.find(m => m.id === le.id)){
-      merged.unshift(le);
-    }
-  });
-
+  const merged = [...serverOrders];
+  localErrors.forEach(le => { if(!merged.find(m => m.id === le.id)){ merged.unshift(le); }});
   renderOrdersList(merged);
 }
 
-/* ---------- Render orders list ---------- */
+/* ---------- Render orders list (adds "Я получил свой заказ!" for pending orders) ---------- */
 function renderOrdersList(list){
   const container = $('ordersList');
   container.innerHTML = '';
@@ -545,14 +546,44 @@ function renderOrdersList(list){
                       <div style="margin-top:6px;color:var(--muted)"><small>${escapeHtml((o.items||[]).slice(0,5).join(', ') || '')}</small></div>`;
     left.appendChild(meta);
 
-    // right (status)
+    // right (status + action)
     const right = document.createElement('div');
     let status = (o.status || 'pending');
     let pill = document.createElement('div');
     pill.className = 'status-pill ' + (status==='success' ? 'status-success' : status==='error' ? 'status-error' : 'status-pending');
     pill.textContent = status === 'success' ? 'Успешно' : status === 'error' ? 'Ошибка' : 'В ожидании';
-
     right.appendChild(pill);
+
+    // if pending -> show "Я получил свой заказ!" button (client triggers confirm)
+    if(status === 'pending'){
+      const btn = document.createElement('button');
+      btn.className = 'order-action';
+      btn.textContent = 'Я получил свой заказ !';
+      btn.onclick = async () => {
+        // optimistic UI: call backend confirm; if OK — reload orders; if not — show message
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        const ok = await confirmOrderOnServer(o.id, o.telegram || $('tgUser').value.trim());
+        if(ok){
+          // reload
+          await loadAndRenderOrders(o.telegram || $('tgUser').value.trim());
+          alert('Заказ помечен как полученный');
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Я получил свой заказ !';
+          alert('Не удалось подтвердить заказ через сервер. Попробуйте позже.');
+        }
+      };
+      right.appendChild(btn);
+
+      // helper note under button
+      const note = document.createElement('div');
+      note.style.marginTop = '6px';
+      note.style.color = 'var(--muted)';
+      note.style.fontSize = '12px';
+      note.innerText = 'В случае технических неполадок с ботом, чтобы пометить ваш заказ автоматически как выполнен вы можете нажать на эту кнопку.';
+      right.appendChild(note);
+    }
 
     row.appendChild(left);
     row.appendChild(right);
@@ -563,14 +594,14 @@ function renderOrdersList(list){
 
 /* ---------- Helpers ---------- */
 function escapeHtml(s){
+  if(s === 0) return '0';
   if(!s) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c] || c));
 }
 
-/* ---------- Автоматическая подгрузка (если пользователь ввёл телеграм ранее) ---------- */
+/* ---------- Auto-load if tg present ---------- */
 window.addEventListener('load', async ()=>{
-  // если в форме уже есть tg, подгрузим заказы
-  const tg = $('tgUser').value.trim();
+  const tg = $('tgUser') ? $('tgUser').value.trim() : '';
   if(tg) await loadAndRenderOrders(tg);
 });
 </script>
