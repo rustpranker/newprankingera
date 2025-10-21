@@ -3,53 +3,130 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Support</title>
-<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<title>Support — Pranks Catalogue</title>
+<link rel="icon" type="image/png" href="https://i.postimg.cc/GmtNswj8/favicon.png">
 <style>
-:root{
-  --bg:#000;
-  --panel:#050505;
-  --red:#5a0000;
-  --red-strong:#420000;
-  --muted:#b3b3b3;
+:root {
+  --bg: #000;
+  --panel: #0a0a0a;
+  --red: #ff1a1a;
+  --red-strong: #b30000;
+  --muted: #bdbdbd;
+  --border: #2a2a2a;
   font-family: Arial, Helvetica, sans-serif;
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:#ddd;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.form-box{background:var(--panel);padding:30px;border:1px solid var(--red-strong);width:420px}
-h2{color:var(--red);margin-top:0;text-align:center;text-transform:uppercase}
-.field{margin-bottom:14px}
-label{display:block;color:var(--muted);margin-bottom:6px}
-select,textarea{width:100%;padding:10px;background:#0a0a0a;border:1px solid #2a2a2a;color:#fff}
-textarea{min-height:120px;resize:none}
-button{background:var(--red-strong);color:#fff;padding:12px;width:100%;border:none;cursor:pointer;font-weight:800;text-transform:uppercase;margin-top:8px}
-button:hover{background:var(--red)}
-.back{display:block;margin-top:16px;text-align:center;color:var(--red);text-decoration:none;font-weight:700}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.form-box {
+  background: var(--panel);
+  padding: 28px;
+  border: 1px solid var(--border);
+  width: 420px;
+  text-align: left;
+}
+
+h2 {
+  color: var(--red);
+  margin: 0 0 16px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+label {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+select, textarea {
+  width: 100%;
+  padding: 10px;
+  background: #0a0a0a;
+  border: 1px solid var(--border);
+  color: #fff;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 120px;
+  resize: none;
+}
+
+button {
+  background: var(--red-strong);
+  color: #fff;
+  padding: 12px;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  font-weight: 800;
+  text-transform: uppercase;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background: var(--red);
+}
+
+.back {
+  display: block;
+  margin-top: 18px;
+  text-align: center;
+  color: var(--red);
+  text-decoration: none;
+  font-weight: 800;
+  transition: color 0.2s ease;
+}
+
+.back:hover {
+  color: #fff;
+}
 </style>
 </head>
 <body>
   <div class="form-box">
     <h2>Support</h2>
     <div class="field">
-      <label>choose mail for contact</label>
+      <label>Choose email for contact</label>
       <select id="emailSelect">
         <option value="owner@onionmad.xyz">owner@onionmad.xyz</option>
         <option value="jakewantedcrowqk@outlook.com">jakewantedcrowqk@outlook.com</option>
       </select>
     </div>
     <div class="field">
-      <label>Текст сообщения</label>
-      <textarea id="message" placeholder="Your text..."></textarea>
+      <label>Message text</label>
+      <textarea id="message" placeholder="Enter your message..."></textarea>
     </div>
     <button id="sendBtn">Send</button>
-    <a href="index.html" class="back">← back</a>
+    <a href="index.html" class="back">← Back</a>
   </div>
 
 <script>
-document.getElementById('sendBtn').addEventListener('click', ()=>{
+document.getElementById('sendBtn').addEventListener('click', () => {
   const email = document.getElementById('emailSelect').value;
   const msg = encodeURIComponent(document.getElementById('message').value.trim());
-  if(!msg){ alert('Введите сообщение'); return; }
+  if (!msg) {
+    alert('Введите сообщение');
+    return;
+  }
   window.location.href = `mailto:${email}?subject=Support%20Request&body=${msg}`;
 });
 </script>
