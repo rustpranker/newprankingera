@@ -1,15 +1,21 @@
 {
   "name": "pranks-backend",
   "version": "1.0.0",
-  "description": "Backend for Pranks Catalogue — receives orders and forwards to Telegram",
+  "description": "Backend for Pranks Catalogue — receives orders from site and sends them to Telegram",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "node-fetch": "^3.3.2",
-    "cors": "^2.8.5"
+    "node-telegram-bot-api": "^0.61.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
