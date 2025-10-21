@@ -1,100 +1,140 @@
 import express from "express";
-import bodyParser from "body-parser";
+import cors from "cors";
 import fetch from "node-fetch";
-import dotenv from "dotenv";
 
-dotenv.config();
 const app = express();
-app.use(bodyParser.json());
-app.use(express.static("public")); // твой frontend в папке public
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
-
-let orders = []; // временная "база данных" в памяти
-
-// --- Принятие заказа с сайта ---
-app.post("/api/order", (req, res) => {
-  const { name, description } = req.body;
-  if (!name || !description) {
-    return res.status(400).json({ error: "Заполните все поля" });
-  }
-
-  const id = Date.now();
-  const order = {
-    id,
-    name,
-    description,
-    status: "pending",
-  };
-
-  orders.push(order);
-
-  // отправка в Telegram
-  const text = `📦 Новый заказ!\n\n👤 Имя: ${name}\n📝 Описание: ${description}\n\nЧтобы отметить как выполнено, нажми /done_${id}`;
-  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: CHAT_ID,
-      text,
-      reply_markup: {
-        inline_keyboard: [[{ text: "✅ Выполнено", callback_data: `done_${id}` }]],
-      },
-    }),
-  });
-
-  res.json({ success: true, id });
-});
-
-// --- Подтверждение заказа через сайт ---
-app.post("/api/order/confirm/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const order = orders.find(o => o.id === id);
-  if (!order) return res.status(404).json({ error: "Заказ не найден" });
-
-  order.status = "success";
-
-  // уведомим в Telegram
-  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: CHAT_ID,
-      text: `✅ Клиент подтвердил получение заказа #${id}`,
-    }),
-  });
-
-  res.json({ success: true });
-});
-
-// --- Получение всех заказов ---
-app.get("/api/orders", (req, res) => {
-  res.json(orders);
-});
-
-// --- Telegram webhook ---
-app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
-  const update = req.body;
-  if (update.callback_query) {
-    const data = update.callback_query.data;
-    if (data.startsWith("done_")) {
-      const id = parseInt(data.split("_")[1]);
-      const order = orders.find(o => o.id === id);
-      if (order) order.status = "success";
-
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: update.callback_query.message.chat.id,
-          text: `✅ Заказ #${id} помечен как выполненный.`,
-        }),
-      });
-    }
-  }
-  res.sendStatus(200);
-});
-
+// ====== CONFIG ======
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://www.pranking.xyz";
+const BOT_TOKEN = process.env.BOT_TOKEN || "8277453489:AAEjGhpEwotl5IagqSH9FGq9gQpbiyRbxeU";
+const CHAT_ID = process.env.CHAT_ID || "7991972980";
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+
+// ====== MIDDLEWARE ======
+app.use(cors({
+  origin: [FRONTEND_ORIGIN],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-secret"]
+}));
+app.use(express.json());
+
+// ====== LOCAL ORDER STORAGE ======
+const orders = new Map(); // id -> { email, telegram, items, total, method, status }
+
+// ====== HELPERS ======
+const genId = () => Math.random().toString(36).slice(2, 10);
+
+// ====== ROUTES ======
+app.get("/", (req, res) => res.json({ ok: true, msg: "Backend running" }));
+
+// ---- СОЗДАНИЕ ЗАКАЗА ----
+app.post("/order", async (req, res) => {
+  try {
+    const { email, telegram, items, total, method } = req.body || {};
+    if (!email || !telegram || !items || typeof total === "undefined") {
+      return res.status(400).json({ ok: false, error: "Missing fields" });
+    }
+
+    const id = genId();
+    orders.set(id, { id, email, telegram, items, total, method, status: "pending" });
+
+    const text = 
+      `🛒 *Новый заказ!*\n\n` +
+      `ID: ${id}\n` +
+      `👤 Telegram: ${telegram}\n` +
+      `✉️ Email: ${email}\n` +
+      `💳 Метод: ${method || "—"}\n` +
+      `📦 Позиции:\n${items.map(it => `• ${it}`).join("\n")}\n\n` +
+      `💰 Итого: ${total}\n` +
+      `⏰ ${new Date().toLocaleString()}`;
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: "✅ Выполнено", callback_data: `done_${id}` }
+        ]
+      ]
+    };
+
+    // Отправка в Telegram
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text,
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      })
+    });
+
+    res.json({ ok: true, orderId: id, status: "pending" });
+  } catch (err) {
+    console.error("Error in /order:", err);
+    res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ---- ТЕЛЕГРАМ КНОПКИ ----
+app.post(`/telegram/${BOT_TOKEN}`, async (req, res) => {
+  try {
+    const { callback_query } = req.body;
+    if (!callback_query) return res.sendStatus(200);
+
+    const { message, data } = callback_query;
+
+    // "Выполнено" из Telegram
+    if (data && data.startsWith("done_")) {
+      const orderId = data.split("_")[1];
+      const order = orders.get(orderId);
+      if (order) {
+        order.status = "success";
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: CHAT_ID,
+            text: `✅ Успешно! Заказ *${orderId}* помечен как выполнен.`,
+            parse_mode: "Markdown"
+          })
+        });
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: message.chat.id,
+            message_id: message.message_id,
+            reply_markup: { inline_keyboard: [] }
+          })
+        });
+      }
+    }
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("Error in Telegram callback:", err);
+    res.sendStatus(500);
+  }
+});
+
+// ---- МАРКИРОВКА ЗАКАЗА КАК ПОЛУЧЕННОГО (с кнопки на сайте) ----
+app.post("/order/received", (req, res) => {
+  const { id } = req.body || {};
+  if (!id || !orders.has(id)) {
+    return res.status(404).json({ ok: false, error: "Order not found" });
+  }
+  const order = orders.get(id);
+  order.status = "received";
+  orders.set(id, order);
+  res.json({ ok: true, msg: "Order marked as received" });
+});
+
+// ---- СПИСОК ЗАКАЗОВ ДЛЯ ПОЛЬЗОВАТЕЛЯ ----
+app.get("/orders/:telegram", (req, res) => {
+  const tg = req.params.telegram;
+  const userOrders = Array.from(orders.values()).filter(o => o.telegram === tg);
+  res.json({ ok: true, orders: userOrders });
+});
+
+// ====== START ======
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
