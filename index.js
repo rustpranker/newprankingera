@@ -6,15 +6,16 @@ import fs from "fs";
 const app = express();
 
 // --- Настройки CORS ---
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://pranking-bot.fly.dev";
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "*";
 app.use(
   cors({
-    origin: [FRONTEND_ORIGIN, "https://www.pranking.xyz"],
+    origin: [FRONTEND_ORIGIN],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-secret"],
   })
 );
 app.use(express.json());
+app.use(express.static("public")); // если фронт лежит в папке public
 
 // --- Telegram настройки ---
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -44,7 +45,7 @@ let orders = loadOrders();
 const genId = () => Math.random().toString(36).slice(2, 10);
 
 // --- Проверка работы ---
-app.get("/", (req, res) => res.json({ ok: true, msg: "Backend running on Fly.io" }));
+app.get("/", (req, res) => res.json({ ok: true, msg: "Backend running" }));
 
 // --- Создание заказа ---
 app.post("/order", async (req, res) => {
@@ -92,8 +93,8 @@ app.post("/order", async (req, res) => {
 
 // --- Подтверждение заказа пользователем ---
 app.post("/confirm", (req, res) => {
-  const { orderId } = req.body;
-  const order = orders.get(orderId);
+  const { id } = req.body;
+  const order = orders.get(id);
 
   if (!order) {
     return res.status(404).json({ ok: false, error: "Order not found" });
@@ -101,7 +102,7 @@ app.post("/confirm", (req, res) => {
 
   order.status = "success";
   saveOrders(orders);
-  console.log(`✅ Order ${orderId} confirmed by user`);
+  console.log(`✅ Order ${id} confirmed by user`);
   res.json({ ok: true, status: "success" });
 });
 
@@ -155,9 +156,6 @@ app.get("/orders/:telegram", (req, res) => {
   const userOrders = Array.from(orders.values()).filter((o) => o.telegram === tg);
   res.json({ ok: true, orders: userOrders });
 });
-
-// --- Статические файлы (если фронт в одной папке) ---
-app.use(express.static("public"));
 
 // --- Запуск ---
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
