@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
+import fs from "fs";
 
 const app = express();
 
@@ -24,8 +25,25 @@ if (!BOT_TOKEN || !CHAT_ID) {
   console.warn("⚠️ WARNING: BOT_TOKEN or CHAT_ID not set in env.");
 }
 
-// --- Хранилище заказов (в памяти) ---
-const orders = new Map(); // id -> { email, telegram, items, total, method, status }
+// --- Хранилище заказов (файл) ---
+const ORDERS_FILE = "./orders.json";
+
+// Загружаем заказы из файла
+const loadOrders = () => {
+  try {
+    const data = fs.readFileSync(ORDERS_FILE, "utf8");
+    return new Map(JSON.parse(data));
+  } catch {
+    return new Map();
+  }
+};
+
+// Сохраняем заказы в файл
+const saveOrders = (orders) => {
+  fs.writeFileSync(ORDERS_FILE, JSON.stringify([...orders.entries()], null, 2));
+};
+
+let orders = loadOrders();
 
 // --- Генерация ID ---
 const genId = () => Math.random().toString(36).slice(2, 10);
@@ -43,6 +61,7 @@ app.post("/order", async (req, res) => {
 
     const id = genId();
     orders.set(id, { id, email, telegram, items, total, method, status: "pending" });
+    saveOrders(orders);
 
     const text =
       `🛒 *Новый заказ!*\n\n` +
@@ -58,7 +77,6 @@ app.post("/order", async (req, res) => {
       inline_keyboard: [[{ text: "✅ Выполнено!", callback_data: `done_${id}` }]],
     };
 
-    // Отправляем заказ в Telegram
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,7 +95,7 @@ app.post("/order", async (req, res) => {
   }
 });
 
-// --- Подтверждение заказа (автоматически с фронта) ---
+// --- Подтверждение заказа пользователем ---
 app.post("/confirm", (req, res) => {
   const { id } = req.body;
   const order = orders.get(id);
@@ -87,8 +105,8 @@ app.post("/confirm", (req, res) => {
   }
 
   order.status = "success";
-  console.log(`✅ Order ${id} marked as success (auto)`);
-
+  saveOrders(orders);
+  console.log(`✅ Order ${id} confirmed by user`);
   res.json({ ok: true, status: "success" });
 });
 
@@ -105,8 +123,8 @@ app.post(`/telegram/${BOT_TOKEN}`, async (req, res) => {
 
       if (order) {
         order.status = "success";
+        saveOrders(orders);
 
-        // Сообщение админу
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -117,7 +135,6 @@ app.post(`/telegram/${BOT_TOKEN}`, async (req, res) => {
           }),
         });
 
-        // Убираем кнопку
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
