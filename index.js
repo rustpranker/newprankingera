@@ -6,10 +6,10 @@ import fs from "fs";
 const app = express();
 
 // --- Настройки CORS ---
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://www.pranking.xyz";
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://pranking-bot.fly.dev";
 app.use(
   cors({
-    origin: [FRONTEND_ORIGIN],
+    origin: [FRONTEND_ORIGIN, "https://www.pranking.xyz"],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-secret"],
   })
@@ -17,8 +17,8 @@ app.use(
 app.use(express.json());
 
 // --- Telegram настройки ---
-const BOT_TOKEN = process.env.BOT_TOKEN || "8277453489:AAEjGhpEwotl5IagqSH9FGq9gQpbiyRbxeU";
-const CHAT_ID = process.env.CHAT_ID || "7991972980";
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 const PORT = process.env.PORT || 8080;
 
 if (!BOT_TOKEN || !CHAT_ID) {
@@ -27,8 +27,6 @@ if (!BOT_TOKEN || !CHAT_ID) {
 
 // --- Хранилище заказов (файл) ---
 const ORDERS_FILE = "./orders.json";
-
-// Загружаем заказы из файла
 const loadOrders = () => {
   try {
     const data = fs.readFileSync(ORDERS_FILE, "utf8");
@@ -37,19 +35,16 @@ const loadOrders = () => {
     return new Map();
   }
 };
-
-// Сохраняем заказы в файл
 const saveOrders = (orders) => {
   fs.writeFileSync(ORDERS_FILE, JSON.stringify([...orders.entries()], null, 2));
 };
-
 let orders = loadOrders();
 
 // --- Генерация ID ---
 const genId = () => Math.random().toString(36).slice(2, 10);
 
 // --- Проверка работы ---
-app.get("/", (req, res) => res.json({ ok: true, msg: "Backend running" }));
+app.get("/", (req, res) => res.json({ ok: true, msg: "Backend running on Fly.io" }));
 
 // --- Создание заказа ---
 app.post("/order", async (req, res) => {
@@ -97,8 +92,8 @@ app.post("/order", async (req, res) => {
 
 // --- Подтверждение заказа пользователем ---
 app.post("/confirm", (req, res) => {
-  const { id } = req.body;
-  const order = orders.get(id);
+  const { orderId } = req.body;
+  const order = orders.get(orderId);
 
   if (!order) {
     return res.status(404).json({ ok: false, error: "Order not found" });
@@ -106,7 +101,7 @@ app.post("/confirm", (req, res) => {
 
   order.status = "success";
   saveOrders(orders);
-  console.log(`✅ Order ${id} confirmed by user`);
+  console.log(`✅ Order ${orderId} confirmed by user`);
   res.json({ ok: true, status: "success" });
 });
 
@@ -160,6 +155,9 @@ app.get("/orders/:telegram", (req, res) => {
   const userOrders = Array.from(orders.values()).filter((o) => o.telegram === tg);
   res.json({ ok: true, orders: userOrders });
 });
+
+// --- Статические файлы (если фронт в одной папке) ---
+app.use(express.static("public"));
 
 // --- Запуск ---
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
